@@ -3,24 +3,35 @@
 // 当前悬停的图片元素
 let currentHoverImg = null;
 
+// 获取元素的所有祖先元素
+function getAncestors(element) {
+  const ancestors = [];
+  while (element) {
+    ancestors.unshift(element);
+    element = element.parentElement;
+  }
+  return ancestors;
+}
+
 // 创建下载按钮元素
 function createDownloadButton() {
   const button = document.createElement('div');
   button.className = 'image-download-button';
   button.innerHTML = '下载';
   button.style.display = 'none';
-  document.body.appendChild(button);
+  // 确保按钮是body的直接子元素，并位于最顶层
+  document.body.insertBefore(button, document.body.firstChild);
   
   // 检查是否在即梦网站上
   const isJimengSite = window.location.hostname.includes('jimeng.jianying.com');
   
   // 为即梦网站设置特殊样式，防止闪烁
   if (isJimengSite) {
-    // 增加按钮大小，使其更容易点击
-    button.style.padding = '10px 15px';
-    button.style.minWidth = '60px';
-    button.style.minHeight = '30px';
-    button.style.fontSize = '16px';
+    // 调整按钮大小，使其更紧凑
+    button.style.padding = '5px 8px';
+    button.style.minWidth = '40px';
+    button.style.minHeight = '20px';
+    button.style.fontSize = '12px';
     // 确保按钮在最上层
     button.style.zIndex = '2147483647';
     // 确保按钮可以接收点击事件
@@ -88,14 +99,132 @@ function createDownloadButton() {
 // 初始化下载按钮
 const downloadButton = createDownloadButton();
 
+// 添加捕获阶段的点击事件监听器
+window.addEventListener('click', (e) => {
+  if (e.target === downloadButton) {
+    // 阻止事件冒泡和默认行为
+    e.stopPropagation();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    
+    // 确保按钮在点击过程中保持显示
+    downloadButton.style.display = 'block';
+    
+    // 在即梦网站上，确保按钮在最上层
+    if (isJimengSite) {
+      downloadButton.style.zIndex = '2147483647';
+      downloadButton.style.pointerEvents = 'auto';
+      void downloadButton.offsetHeight; // 强制重绘
+      
+      // 检查并临时禁用可能拦截点击的元素
+      const elements = document.elementsFromPoint(
+        event.clientX,
+        event.clientY
+      );
+      
+      elements.forEach(el => {
+        if (el !== downloadButton && (el.style.zIndex > downloadButton.style.zIndex || 
+            el.className.includes('edit-button') || el.className.includes('editor'))) {
+          el.style.pointerEvents = 'none';
+          setTimeout(() => {
+            el.style.pointerEvents = '';
+          }, 1000);
+        }
+      });
+    }
+    
+    // 触发下载逻辑
+    handleDownloadClick(e);
+  }
+}, true);
+
 // 检查是否在即梦网站上
 const isJimengSite = window.location.hostname.includes('jimeng.jianying.com');
+
+// 添加定期检查按钮存在性的函数
+function checkButtonExistence() {
+  if (!document.body.contains(downloadButton)) {
+    document.body.appendChild(downloadButton);
+    console.log('检测到下载按钮被移除，已重新创建');
+    
+    // 在即梦网站上确保按钮在最上层
+    if (isJimengSite) {
+      downloadButton.style.zIndex = '2147483647';
+      downloadButton.style.pointerEvents = 'auto';
+      // 强制重绘DOM，确保z-index生效
+      void downloadButton.offsetHeight;
+      
+      // 添加MutationObserver监听按钮位置变化和层级检查
+      const observer = new MutationObserver(() => {
+        // 确保按钮在body的直接子元素中
+        if (downloadButton.parentNode !== document.body) {
+          document.body.insertBefore(downloadButton, document.body.firstChild);
+        }
+        
+        // 在即梦网站上，检查并确保按钮始终在最上层
+        if (isJimengSite) {
+          // 检查所有覆盖元素，包括编辑按钮
+          const elements = document.elementsFromPoint(
+            downloadButton.getBoundingClientRect().left + 10,
+            downloadButton.getBoundingClientRect().top + 10
+          );
+          
+          for (const el of elements) {
+            if (el !== downloadButton && (el.style.zIndex > downloadButton.style.zIndex || 
+                el.className.includes('edit-button') || el.className.includes('editor'))) {
+              // 调整覆盖元素的z-index，特别是编辑按钮
+              el.style.zIndex = '2147483646';
+              // 确保编辑按钮不会阻止点击事件
+              if (el.className.includes('edit-button') || el.className.includes('editor')) {
+                el.style.pointerEvents = 'none';
+                // 确保编辑按钮不会导致下载按钮被隐藏
+                downloadButton.style.display = 'block';
+              }
+            }
+          }
+          
+          // 强制按钮显示在最上层
+          downloadButton.style.zIndex = '2147483647';
+          void downloadButton.offsetHeight; // 强制重绘
+        }
+      });
+      
+      // 监听更广泛的DOM变化
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+      });
+    }
+  }
+}
+
+// 每500毫秒检查一次按钮是否存在
+setInterval(checkButtonExistence, 500);
 
 // 创建一个全局标志变量，用于跟踪按钮是否处于稳定状态
 window.buttonStableMode = false;
 
 // 针对即梦网站添加额外的事件处理
 if (isJimengSite) {
+  // 监听DOM变化，检测编辑按钮的出现
+  const editButtonObserver = new MutationObserver(() => {
+    const editButtons = document.querySelectorAll('.edit-button, .editor');
+    editButtons.forEach(btn => {
+      if (btn.style.zIndex > downloadButton.style.zIndex) {
+        btn.style.zIndex = '2147483646';
+        btn.style.pointerEvents = 'none';
+      }
+    });
+  });
+  
+  editButtonObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class']
+  });
   
   // 监听整个文档的鼠标移动事件，防止按钮意外消失
   document.addEventListener('mousemove', (event) => {
@@ -166,29 +295,41 @@ function handleMouseEnter(event) {
   event.stopPropagation();
   
   const img = event.target;
+  
+  // 检查图片尺寸是否大于50x50
+  const rect = img.getBoundingClientRect();
+  if (rect.width < 50 || rect.height < 50) {
+    return;
+  }
+  
+  // 在即梦网站上，立即强制按钮显示在最上层
+  if (isJimengSite) {
+    downloadButton.style.zIndex = '2147483647';
+    void downloadButton.offsetHeight; // 强制重绘
+  }
+  
   currentHoverImg = img;
   
-  // 获取图片位置信息
-  const rect = img.getBoundingClientRect();
-  
-  // 检查是否在即梦网站上
-  const isJimengSite = window.location.hostname.includes('jimeng.jianying.com');
-  
-  // 根据网站调整按钮位置
-  if (isJimengSite) {
-    // 即梦网站上，将按钮放在更容易点击的位置
-    downloadButton.style.top = `${window.scrollY + rect.top + 15}px`;
-    downloadButton.style.left = `${window.scrollX + rect.left + 15}px`;
-    // 增加z-index确保按钮在最上层
-    downloadButton.style.zIndex = '2147483647';
-  } else {
-    // 豆包网站使用原来的位置
-    downloadButton.style.top = `${window.scrollY + rect.top + 10}px`;
-    downloadButton.style.left = `${window.scrollX + rect.left + 10}px`;
-  }
+  downloadButton.style.top = `${window.scrollY + rect.top + rect.height/2 - 15}px`;
+  downloadButton.style.left = `${window.scrollX + rect.left + rect.width/2 - 15}px`;
   
   // 显示下载按钮
   downloadButton.style.display = 'block';
+  
+  // 针对即梦网站，检查并处理覆盖div
+  if (isJimengSite) {
+    // 强制按钮显示在最上层
+    document.body.insertBefore(downloadButton, document.body.firstChild);
+    
+    // 检查是否有覆盖div
+    const elements = document.elementsFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
+    for (const el of elements) {
+      if (el !== img && el !== downloadButton && el.style.zIndex > downloadButton.style.zIndex) {
+        // 调整覆盖div的z-index
+        el.style.zIndex = '2147483646';
+      }
+    }
+  }
   
   // 设置当前图片URL
   downloadButton.dataset.imgSrc = img.src;
@@ -199,90 +340,69 @@ function handleMouseLeave(event) {
   // 阻止事件冒泡
   event.stopPropagation();
   
-  // 检查是否在即梦网站上
-  const isJimengSite = window.location.hostname.includes('jimeng.jianying.com');
-  
-  // 在即梦网站上，延迟重置当前悬停图片，给用户更多时间移动到按钮上
-  if (isJimengSite) {
-    // 获取当前鼠标位置
-    const currentMouseX = event.clientX;
-    const currentMouseY = event.clientY;
-    
-    // 获取按钮位置
-    const buttonRect = downloadButton.getBoundingClientRect();
-    
-    // 检查鼠标是否正在向按钮移动
-    const movingTowardsButton = 
-      currentMouseX >= buttonRect.left - 50 && currentMouseX <= buttonRect.right + 50 && 
-      currentMouseY >= buttonRect.top - 50 && currentMouseY <= buttonRect.bottom + 50;
-    
-    // 如果鼠标正在向按钮移动，不要立即重置悬停图片
-    if (movingTowardsButton) {
-      // 延迟重置，给用户足够时间移动到按钮上
-      setTimeout(() => {
-        // 只有当按钮不在悬停状态时才重置
-        if (downloadButton.dataset.hovering !== 'true') {
-          currentHoverImg = null;
-        }
-      }, 800);
-    } else {
-      // 如果鼠标不是向按钮移动，延迟较短时间后重置
-      setTimeout(() => {
-        // 只有当按钮不在悬停状态时才重置
-        if (downloadButton.dataset.hovering !== 'true') {
-          currentHoverImg = null;
-        }
-      }, 300);
-    }
-  } else {
-    // 非即梦网站使用原来的逻辑
+  // 如果不是即梦网站，立即隐藏按钮
+  if (!isJimengSite) {
+    downloadButton.style.display = 'none';
     currentHoverImg = null;
   }
-  
-  // 使用延时隐藏按钮，给用户足够时间移动到按钮上
-  setTimeout(() => {
-    // 如果按钮正在被悬停，不要隐藏
-    if (downloadButton.dataset.hovering === 'true') {
-      return;
-    }
-    
-    // 检查鼠标是否在按钮上，如果不在才隐藏
-    const buttonRect = downloadButton.getBoundingClientRect();
-    const mouseX = event.clientX;
-    const mouseY = event.clientY;
-    
-    // 在即梦网站上增加额外的判断条件，确保按钮不会意外消失
-    if (isJimengSite) {
-      // 增加一个更大的判断区域，防止鼠标轻微移动导致按钮消失
-      const buffer = 40; // 更大的像素缓冲区
-      if (mouseX < buttonRect.left - buffer || mouseX > buttonRect.right + buffer || 
-          mouseY < buttonRect.top - buffer || mouseY > buttonRect.bottom + buffer) {
-        // 只有当鼠标确实远离按钮时才隐藏
-        if (!window.buttonStableMode) { // 使用全局变量检查是否处于稳定模式
-          downloadButton.style.display = 'none';
-        }
-      }
-    } else {
-      // 豆包网站使用原来的逻辑
-      if (mouseX < buttonRect.left || mouseX > buttonRect.right || 
-          mouseY < buttonRect.top || mouseY > buttonRect.bottom) {
-        downloadButton.style.display = 'none';
-      }
-    }
-  }, isJimengSite ? 500 : 50); // 在即梦网站上大幅增加延迟时间
 }
 
 // 处理下载按钮点击事件
 function handleDownloadClick(event) {
-  // 阻止事件冒泡
-  event.stopPropagation();
-  event.preventDefault();
+  // 打印完整事件信息用于调试
+  console.log('下载按钮点击事件详情:', {
+    eventType: event.type,
+    target: event.target,
+    currentTarget: event.currentTarget,
+    eventPhase: event.eventPhase,
+    bubbles: event.bubbles,
+    cancelable: event.cancelable,
+    defaultPrevented: event.defaultPrevented,
+    timeStamp: event.timeStamp,
+    isTrusted: event.isTrusted,
+    // 记录完整的事件传播路径
+    composedPath: event.composedPath(),
+    // 记录按钮的DOM层级关系
+    buttonAncestors: getAncestors(event.target),
+    // 记录按钮的CSS属性
+    buttonComputedStyle: window.getComputedStyle(event.target)
+  });
   
-  // 确保按钮在点击过程中保持显示
-  downloadButton.style.display = 'block';
+  // 检查事件是否已经被处理
+  if (event.defaultPrevented) {
+    console.warn('事件已被其他监听器阻止');
+  }
+  
+  
   
   const imgSrc = downloadButton.dataset.imgSrc;
   if (imgSrc) {
+    // 打印图片地址和调试信息
+    console.log('图片下载开始:', {
+      imgSrc: imgSrc,
+      timestamp: new Date().toISOString(),
+      buttonState: {
+        display: downloadButton.style.display,
+        zIndex: downloadButton.style.zIndex,
+        position: downloadButton.getBoundingClientRect()
+      }
+    });
+    
+    // 在即梦网站上检查图片是否存在
+    if (isJimengSite && !imgSrc) {
+      console.error('即梦网站错误: 未找到图片地址');
+      return;
+    }
+    // 在即梦网站上打印额外调试信息
+    if (isJimengSite) {
+      console.log('即梦网站图片地址:', imgSrc);
+      console.debug('即梦网站下载按钮状态:', {
+        display: downloadButton.style.display,
+        zIndex: downloadButton.style.zIndex,
+        pointerEvents: downloadButton.style.pointerEvents,
+        position: downloadButton.getBoundingClientRect()
+      });
+    }
     // 从URL中提取文件名
     const fileName = imgSrc.split('/').pop().split('?')[0] || 'image.jpg';
     
@@ -290,12 +410,45 @@ function handleDownloadClick(event) {
     const originalText = downloadButton.innerHTML;
     downloadButton.innerHTML = '下载中...';
     
+    // 在即梦网站上添加调试日志
+    if (isJimengSite) {
+      console.log('即梦网站下载开始:', {
+        imgSrc: imgSrc,
+        fileName: fileName,
+        buttonPosition: downloadButton.getBoundingClientRect(),
+        hoverState: downloadButton.dataset.hovering,
+        currentHoverImg: currentHoverImg
+      });
+    }
+    
     // 使用fetch获取图片内容
     fetch(imgSrc)
-      .then(response => response.blob())
+      .then(response => {
+        if (isJimengSite) {
+          console.log('即梦网站获取图片响应状态:', response.status);
+          console.debug('即梦网站响应头:', Object.fromEntries(response.headers.entries()));
+        }
+        
+        // 检查响应状态
+        if (!response.ok) {
+          throw new Error(`HTTP错误! 状态: ${response.status}`);
+        }
+        
+        // 检查内容类型是否为图片
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`无效的内容类型: ${contentType}`);
+        }
+        
+        return response.blob();
+      })
       .then(blob => {
         // 创建Blob URL
         const blobUrl = URL.createObjectURL(blob);
+        
+        if (isJimengSite) {
+          console.log('即梦网站创建Blob URL成功:', blobUrl);
+        }
         
         // 创建下载链接并触发点击
         const link = document.createElement('a');
@@ -312,18 +465,32 @@ function handleDownloadClick(event) {
         // 恢复按钮文本
         downloadButton.innerHTML = originalText;
         
+        if (isJimengSite) {
+          console.log('即梦网站下载完成:', fileName);
+        }
+        
         // 在即梦网站上，保持按钮显示一段时间后再隐藏
         if (isJimengSite) {
           setTimeout(() => {
             // 只有当鼠标不在按钮上时才隐藏
             if (downloadButton.dataset.hovering !== 'true' && !currentHoverImg) {
               downloadButton.style.display = 'none';
+              if (isJimengSite) {
+                console.log('即梦网站隐藏下载按钮');
+              }
             }
           }, 1000);
         }
       })
       .catch(error => {
         console.error('下载图片失败:', error);
+        if (isJimengSite) {
+          console.error('即梦网站下载失败:', {
+            error: error,
+            imgSrc: imgSrc,
+            timestamp: new Date().toISOString()
+          });
+        }
         downloadButton.innerHTML = originalText;
       });
   }
@@ -394,23 +561,56 @@ window.addEventListener('scroll', () => {
 // 使用MutationObserver监听DOM变化，处理动态加载的图片
 const observer = new MutationObserver(mutations => {
   let hasNewNodes = false;
+  let buttonRemoved = false;
   
   mutations.forEach(mutation => {
+    // 检查是否有节点被移除
+    if (mutation.removedNodes.length) {
+      mutation.removedNodes.forEach(node => {
+        if (node === downloadButton) {
+          buttonRemoved = true;
+        }
+      });
+    }
+    
     if (mutation.addedNodes.length) {
       hasNewNodes = true;
+      
+      // 检查是否有图片节点被添加
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          // 确保下载按钮仍然存在，如果不存在则重新创建
+          if (!document.body.contains(downloadButton)) {
+            document.body.appendChild(downloadButton);
+            console.log('检测到下载按钮被移除，已重新创建');
+          }
+        }
+      });
     }
   });
   
-  // 只在确实有新节点时才重新设置监听器
-  if (hasNewNodes) {
+  // 如果按钮被移除或DOM有变化，重新创建按钮并设置监听
+  if (buttonRemoved || hasNewNodes) {
+    if (!document.body.contains(downloadButton)) {
+      document.body.appendChild(downloadButton);
+      console.log('检测到下载按钮被移除，已重新创建');
+    }
     setupImageListeners();
+    
+    // 在即梦网站上，额外确保按钮在最上层
+    if (isJimengSite) {
+      downloadButton.style.zIndex = '2147483647';
+      downloadButton.style.pointerEvents = 'auto';
+    }
   }
 });
 
 // 开始观察DOM变化
 observer.observe(document.body, {
   childList: true,
-  subtree: true
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['style', 'class']
 });
 
 // 针对即梦网站的特殊初始化
@@ -425,6 +625,11 @@ if (isJimengSite) {
       e.stopPropagation();
       e.preventDefault();
     }
+    // 检测即梦编辑按钮并调整z-index
+    if (e.target.classList.contains('jimeng-edit-button')) {
+      downloadButton.style.zIndex = '2147483647';
+      void downloadButton.offsetHeight;
+    }
   }, true);
   
   // 修复即梦网站上的z-index问题
@@ -432,6 +637,8 @@ if (isJimengSite) {
     if (downloadButton.style.display === 'block') {
       // 确保按钮始终在最上层
       downloadButton.style.zIndex = '2147483647';
+      // 强制重绘DOM，确保z-index生效
+      void downloadButton.offsetHeight;
     }
   }, 100);
   
