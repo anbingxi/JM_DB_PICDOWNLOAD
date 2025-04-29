@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "图片下载助手",
+  "version": "1.0",
+  "description": "在豆包和即梦网站上添加图片下载按钮",
+  "permissions": ["downloads"],
+  "host_permissions": [
+    "https://www.doubao.com/*",
+    "https://jimeng.jianying.com/*",
+    "https://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.doubao.com/*",
+        "https://jimeng.jianying.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

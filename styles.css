@@ -1,0 +1,31 @@
+.image-download-button {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 2147483647; /* 使用最高的z-index确保在所有元素之上 */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.2s ease;
+  /* 增加点击区域 */
+  min-width: 50px;
+  min-height: 20px;
+  text-align: center;
+  /* 防止文本被选中 */
+  user-select: none;
+  -webkit-user-select: none;
+  /* 确保按钮不会被其他元素遮挡 */
+  pointer-events: auto !important;
+  /* 确保按钮不会被其他元素的事件捕获 */
+  isolation: isolate;
+}
+
+.image-download-button:hover {
+  background-color: rgba(0, 0, 0, 0.9);
+  /* 增加悬停时的视觉反馈 */
+  transform: scale(1.05);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
