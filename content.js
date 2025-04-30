@@ -294,12 +294,43 @@ function handleMouseEnter(event) {
   // 阻止事件冒泡
   event.stopPropagation();
   
-  const img = event.target;
+  const target = event.target;
   
-  // 检查图片尺寸是否大于50x50
-  const rect = img.getBoundingClientRect();
-  if (rect.width < 50 || rect.height < 50) {
+  // 检查元素类型和尺寸
+  let src = '';
+  if (target.tagName === 'IMG') {
+    // 处理图片元素
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 50 || rect.height < 50) {
+      return;
+    }
+    src = target.src;
+  } else if (target.tagName === 'VIDEO') {
+    // 处理视频元素
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 50 || rect.height < 50) {
+      return;
+    }
+    src = target.src;
+  } else {
     return;
+  }
+  
+  // 在即梦网站上，检查父元素是否包含'resultContainer'开头的class
+  if (isJimengSite) {
+    let parent = target.parentElement;
+    let hasResultContainer = false;
+    while (parent && parent !== document.body) {
+      if (parent.className && typeof parent.className === 'string' && 
+          parent.className.split(' ').some(cls => cls.startsWith('resultContainer'))) {
+        hasResultContainer = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (!hasResultContainer) {
+      return;
+    }
   }
   
   // 在即梦网站上，立即强制按钮显示在最上层
@@ -308,8 +339,9 @@ function handleMouseEnter(event) {
     void downloadButton.offsetHeight; // 强制重绘
   }
   
-  currentHoverImg = img;
+  currentHoverImg = target;
   
+  const rect = target.getBoundingClientRect();
   downloadButton.style.top = `${window.scrollY + rect.top + rect.height/2 - 15}px`;
   downloadButton.style.left = `${window.scrollX + rect.left + rect.width/2 - 15}px`;
   
@@ -324,15 +356,15 @@ function handleMouseEnter(event) {
     // 检查是否有覆盖div
     const elements = document.elementsFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
     for (const el of elements) {
-      if (el !== img && el !== downloadButton && el.style.zIndex > downloadButton.style.zIndex) {
+      if (el !== target && el !== downloadButton && el.style.zIndex > downloadButton.style.zIndex) {
         // 调整覆盖div的z-index
         el.style.zIndex = '2147483646';
       }
     }
   }
   
-  // 设置当前图片URL
-  downloadButton.dataset.imgSrc = img.src;
+  // 设置当前资源URL
+  downloadButton.dataset.imgSrc = src;
 }
 
 // 处理鼠标移出图片事件
@@ -375,11 +407,11 @@ function handleDownloadClick(event) {
   
   
   
-  const imgSrc = downloadButton.dataset.imgSrc;
-  if (imgSrc) {
-    // 打印图片地址和调试信息
-    console.log('图片下载开始:', {
-      imgSrc: imgSrc,
+  const resourceSrc = downloadButton.dataset.imgSrc;
+  if (resourceSrc) {
+    // 打印资源地址和调试信息
+    console.log('资源下载开始:', {
+      resourceSrc: resourceSrc,
       timestamp: new Date().toISOString(),
       buttonState: {
         display: downloadButton.style.display,
@@ -388,14 +420,14 @@ function handleDownloadClick(event) {
       }
     });
     
-    // 在即梦网站上检查图片是否存在
-    if (isJimengSite && !imgSrc) {
-      console.error('即梦网站错误: 未找到图片地址');
+    // 在即梦网站上检查资源是否存在
+    if (isJimengSite && !resourceSrc) {
+      console.error('即梦网站错误: 未找到资源地址');
       return;
     }
     // 在即梦网站上打印额外调试信息
     if (isJimengSite) {
-      console.log('即梦网站图片地址:', imgSrc);
+      console.log('即梦网站资源地址:', resourceSrc);
       console.debug('即梦网站下载按钮状态:', {
         display: downloadButton.style.display,
         zIndex: downloadButton.style.zIndex,
@@ -404,7 +436,10 @@ function handleDownloadClick(event) {
       });
     }
     // 从URL中提取文件名
-    const fileName = imgSrc.split('/').pop().split('?')[0] || 'image.jpg';
+    let fileName = resourceSrc.split('/').pop().split('?')[0];
+    if (!fileName) {
+      fileName = currentHoverImg.tagName === 'VIDEO' ? 'video.mp4' : 'image.jpg';
+    }
     
     // 显示下载中状态
     const originalText = downloadButton.innerHTML;
@@ -413,7 +448,7 @@ function handleDownloadClick(event) {
     // 在即梦网站上添加调试日志
     if (isJimengSite) {
       console.log('即梦网站下载开始:', {
-        imgSrc: imgSrc,
+        resourceSrc: resourceSrc,
         fileName: fileName,
         buttonPosition: downloadButton.getBoundingClientRect(),
         hoverState: downloadButton.dataset.hovering,
@@ -421,11 +456,11 @@ function handleDownloadClick(event) {
       });
     }
     
-    // 使用fetch获取图片内容
-    fetch(imgSrc)
+    // 使用fetch获取资源内容
+    fetch(resourceSrc)
       .then(response => {
         if (isJimengSite) {
-          console.log('即梦网站获取图片响应状态:', response.status);
+          console.log('即梦网站获取资源响应状态:', response.status);
           console.debug('即梦网站响应头:', Object.fromEntries(response.headers.entries()));
         }
         
@@ -434,9 +469,9 @@ function handleDownloadClick(event) {
           throw new Error(`HTTP错误! 状态: ${response.status}`);
         }
         
-        // 检查内容类型是否为图片
+        // 检查内容类型是否为图片或视频
         const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.startsWith('image/')) {
+        if (!contentType || !(contentType.startsWith('image/') || contentType.startsWith('video/'))) {
           throw new Error(`无效的内容类型: ${contentType}`);
         }
         
@@ -467,6 +502,7 @@ function handleDownloadClick(event) {
         
         if (isJimengSite) {
           console.log('即梦网站下载完成:', fileName);
+          console.log('下载资源类型:', currentHoverImg.tagName);
         }
         
         // 在即梦网站上，保持按钮显示一段时间后再隐藏
@@ -483,11 +519,11 @@ function handleDownloadClick(event) {
         }
       })
       .catch(error => {
-        console.error('下载图片失败:', error);
+        console.error('下载资源失败:', error);
         if (isJimengSite) {
           console.error('即梦网站下载失败:', {
             error: error,
-            imgSrc: imgSrc,
+            resourceSrc: resourceSrc,
             timestamp: new Date().toISOString()
           });
         }
@@ -503,6 +539,9 @@ downloadButton.addEventListener('click', handleDownloadClick);
 function setupImageListeners() {
   // 移除旧的事件监听器，防止重复绑定
   const images = document.querySelectorAll('img');
+  const videos = document.querySelectorAll('video');
+  
+  // 处理图片元素
   images.forEach(img => {
     img.removeEventListener('mouseenter', handleMouseEnter);
     img.removeEventListener('mouseleave', handleMouseLeave);
@@ -518,6 +557,39 @@ function setupImageListeners() {
         // 如果下载按钮正在显示，阻止事件冒泡
         if (downloadButton.style.display === 'block' && 
             currentHoverImg === img) {
+          // 检查点击位置是否在下载按钮区域
+          const buttonRect = downloadButton.getBoundingClientRect();
+          const clickX = e.clientX;
+          const clickY = e.clientY;
+          
+          // 如果点击在按钮区域附近，阻止事件传播
+          const buffer = 15;
+          if (clickX >= buttonRect.left - buffer && clickX <= buttonRect.right + buffer && 
+              clickY >= buttonRect.top - buffer && clickY <= buttonRect.bottom + buffer) {
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        }
+      }, true); // 使用捕获阶段
+    }
+  });
+  
+  // 处理视频元素
+  videos.forEach(video => {
+    video.removeEventListener('mouseenter', handleMouseEnter);
+    video.removeEventListener('mouseleave', handleMouseLeave);
+    
+    // 添加新的事件监听器
+    video.addEventListener('mouseenter', handleMouseEnter);
+    video.addEventListener('mouseleave', handleMouseLeave);
+    
+    // 针对即梦网站，增加额外的点击事件监听
+    if (isJimengSite) {
+      // 防止视频点击事件影响下载按钮
+      video.addEventListener('click', (e) => {
+        // 如果下载按钮正在显示，阻止事件冒泡
+        if (downloadButton.style.display === 'block' && 
+            currentHoverImg === video) {
           // 检查点击位置是否在下载按钮区域
           const buttonRect = downloadButton.getBoundingClientRect();
           const clickX = e.clientX;
