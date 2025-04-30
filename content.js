@@ -322,7 +322,7 @@ function handleMouseEnter(event) {
     let hasResultContainer = false;
     while (parent && parent !== document.body) {
       if (parent.className && typeof parent.className === 'string' && 
-          parent.className.split(' ').some(cls => cls.startsWith('resultContainer'))) {
+          (parent.className.split(' ').some(cls => cls.startsWith('explore-content')) || parent.className.split(' ').some(cls => cls.startsWith('resultContainer'))) ) {
         hasResultContainer = true;
         break;
       }
